@@ -1,0 +1,152 @@
+.stats{
+padding:90px 0;
+background:white;
+}
+
+.stats-container{
+
+display:grid;
+
+grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+
+gap:30px;
+
+}
+
+.stat-card{
+
+background:linear-gradient(135deg,#4f46e5,#7c3aed);
+
+color:white;
+
+padding:35px;
+
+border-radius:20px;
+
+text-align:center;
+
+transition:.35s;
+
+box-shadow:0 15px 35px rgba(79,70,229,.25);
+
+}
+
+.stat-card:hover{
+
+transform:translateY(-10px);
+
+}
+
+.stat-card h2{
+
+font-size:42px;
+
+margin-bottom:10px;
+
+}
+
+.stat-card p{
+
+font-size:18px;
+
+}
+
+.cta{
+
+padding:100px 0;
+
+background:#eef2ff;
+
+}
+
+.cta-box{
+
+background:white;
+
+padding:70px 40px;
+
+border-radius:25px;
+
+text-align:center;
+
+box-shadow:0 20px 40px rgba(0,0,0,.08);
+
+}
+
+.cta-box h2{
+
+font-size:42px;
+
+color:#111827;
+
+margin-bottom:20px;
+
+}
+
+.cta-box p{
+
+font-size:18px;
+
+color:#6b7280;
+
+max-width:700px;
+
+margin:auto;
+
+margin-bottom:35px;
+
+line-height:1.8;
+
+}
+
+.cta-box button{
+
+padding:16px 35px;
+
+font-size:18px;
+
+background:#4f46e5;
+
+color:white;
+
+border:none;
+
+border-radius:12px;
+
+cursor:pointer;
+
+font-weight:600;
+
+transition:.3s;
+
+}
+
+.cta-box button:hover{
+
+background:#4338ca;
+
+transform:translateY(-4px);
+
+}
+
+@media(max-width:768px){
+
+.cta-box{
+
+padding:45px 20px;
+
+}
+
+.cta-box h2{
+
+font-size:30px;
+
+}
+
+.cta-box p{
+
+font-size:16px;
+
+}
+
+}
