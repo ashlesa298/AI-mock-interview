@@ -1,106 +1,261 @@
-const pdfParse = require("pdf-parse")
-const { generateInterviewReport, generateResumePdf } = require("../services/ai.service")
-const interviewReportModel = require("../models/interviewReport.model")
+const pdfParse = require("pdf-parse");
+const {
+  generateInterviewQuestions,
+  generateInterviewFeedback,
+  generateAtsAnalysis,
+  generateReportPdf,
+} = require("../services/ai.service");
+const interviewReportModel = require("../models/interviewReport.model");
+const asyncHandler = require("../utils/asyncHandler");
 
-
-
+async function extractResumeText(file) {
+  if (!file) return "";
+  const parsed = await new pdfParse.PDFParse(Uint8Array.from(file.buffer)).getText();
+  return parsed.text || "";
+}
 
 /**
- * @description Controller to generate interview report based on user self description, resume and job description.
+ * @route POST /api/interview/questions
+ * @description Generate AI interview questions from resume + self description + job description.
+ * Creates a "pending" interview report holding the questions (no answers/feedback yet).
  */
-async function generateInterViewReportController(req, res) {
+const generateQuestionsController = asyncHandler(async function (req, res) {
+  if (!req.file) {
+    return res.status(400).json({ message: "Resume PDF is required." });
+  }
 
-    if (!req.file) {
-        return res.status(400).json({
-            message: "Resume PDF is required."
-        });
-    }
+  const { selfDescription, jobDescription } = req.body;
 
-    const resumeContent = await (
-        new pdfParse.PDFParse(Uint8Array.from(req.file.buffer))
-    ).getText();
+  if (!jobDescription) {
+    return res.status(400).json({ message: "Job description is required." });
+  }
 
-    const { selfDescription, jobDescription } = req.body;
+  const resumeContent = await extractResumeText(req.file);
 
-    const interViewReportByAi = await generateInterviewReport({
-        resume: resumeContent.text,
-        selfDescription,
-        jobDescription
-    })
-
-    const interviewReport = await interviewReportModel.create({
-    title: interViewReportByAi.title || "Software Engineer",
+  const aiResult = await generateInterviewQuestions({
+    resume: resumeContent,
+    selfDescription,
     jobDescription,
-    report: interViewReportByAi,
+  });
+
+  const questions = aiResult.questions.map((q, i) => ({
+    questionId: `q${i + 1}`,
+    category: q.category,
+    question: q.question,
+    intention: q.intention,
+  }));
+
+  const interviewReport = await interviewReportModel.create({
+    type: "interview",
+    status: "pending",
+    title: aiResult.title || "Software Engineer",
+    resume: resumeContent,
+    selfDescription,
+    jobDescription,
+    questions,
+    answers: questions.map((q) => ({ questionId: q.questionId, answer: "" })),
     user: req.user.id,
+  });
+
+  res.status(201).json({
+    message: "Interview questions generated successfully.",
+    interviewReport,
+  });
 });
 
-    res.status(201).json({
-        message: "Interview report generated successfully.",
-        interviewReport
-    })
+/**
+ * @route PATCH /api/interview/:interviewId/answers
+ * @description Save/update one or more answers for a pending interview.
+ * body: { answers: [{ questionId, answer }] }
+ */
+const saveAnswersController = asyncHandler(async function (req, res) {
+  const { interviewId } = req.params;
+  const { answers } = req.body;
 
-}
+  if (!Array.isArray(answers) || answers.length === 0) {
+    return res.status(400).json({ message: "answers array is required." });
+  }
+
+  const interviewReport = await interviewReportModel.findOne({
+    _id: interviewId,
+    user: req.user.id,
+    type: "interview",
+  });
+
+  if (!interviewReport) {
+    return res.status(404).json({ message: "Interview not found." });
+  }
+
+  if (interviewReport.status === "completed") {
+    return res.status(400).json({ message: "This interview has already been submitted." });
+  }
+
+  const answerMap = new Map(interviewReport.answers.map((a) => [a.questionId, a.answer]));
+  answers.forEach(({ questionId, answer }) => {
+    if (questionId) answerMap.set(questionId, answer ?? "");
+  });
+
+  interviewReport.answers = Array.from(answerMap, ([questionId, answer]) => ({ questionId, answer }));
+  await interviewReport.save();
+
+  res.status(200).json({
+    message: "Answers saved successfully.",
+    interviewReport,
+  });
+});
 
 /**
- * @description Controller to get interview report by interviewId.
+ * @route POST /api/interview/:interviewId/submit
+ * @description Submit the interview: send stored Q&A to Gemini and generate real feedback.
  */
-async function getInterviewReportByIdController(req, res) {
+const submitInterviewController = asyncHandler(async function (req, res) {
+  const { interviewId } = req.params;
 
-    const { interviewId } = req.params
+  const interviewReport = await interviewReportModel.findOne({
+    _id: interviewId,
+    user: req.user.id,
+    type: "interview",
+  });
 
-    const interviewReport = await interviewReportModel.findOne({ _id: interviewId, user: req.user.id })
+  if (!interviewReport) {
+    return res.status(404).json({ message: "Interview not found." });
+  }
 
-    if (!interviewReport) {
-        return res.status(404).json({
-            message: "Interview report not found."
-        })
-    }
+  if (interviewReport.status === "completed") {
+    return res.status(200).json({
+      message: "Interview already submitted.",
+      interviewReport,
+    });
+  }
 
-    res.status(200).json({
-        message: "Interview report fetched successfully.",
-        interviewReport
-    })
-}
+  const feedback = await generateInterviewFeedback({
+    questions: interviewReport.questions,
+    answers: interviewReport.answers,
+    resume: interviewReport.resume,
+    jobDescription: interviewReport.jobDescription,
+  });
 
+  interviewReport.feedback = feedback;
+  interviewReport.matchScore = feedback.overallScore;
+  interviewReport.status = "completed";
+  await interviewReport.save();
+
+  res.status(200).json({
+    message: "Interview submitted and feedback generated successfully.",
+    interviewReport,
+  });
+});
 
 /**
- * @description Controller to get all interview reports of logged in user.
+ * @route POST /api/interview/ats
+ * @description Analyze a resume against a job description (ATS-style report).
  */
-async function getAllInterviewReportsController(req, res) {
-    const interviewReports = await interviewReportModel.find({ user: req.user.id }).sort({ createdAt: -1 }).select("-resume -selfDescription -jobDescription -__v -technicalQuestions -behavioralQuestions -skillGaps -preparationPlan")
+const generateAtsController = asyncHandler(async function (req, res) {
+  if (!req.file) {
+    return res.status(400).json({ message: "Resume PDF is required." });
+  }
 
-    res.status(200).json({
-        message: "Interview reports fetched successfully.",
-        interviewReports
-    })
-}
+  const { jobDescription } = req.body;
 
+  if (!jobDescription) {
+    return res.status(400).json({ message: "Job description is required." });
+  }
+
+  const resumeContent = await extractResumeText(req.file);
+
+  const atsReport = await generateAtsAnalysis({
+    resume: resumeContent,
+    jobDescription,
+  });
+
+  const interviewReport = await interviewReportModel.create({
+    type: "ats",
+    status: "completed",
+    title: atsReport.title || "Resume ATS Analysis",
+    matchScore: atsReport.matchScore || 0,
+    resume: resumeContent,
+    jobDescription,
+    atsReport,
+    user: req.user.id,
+  });
+
+  res.status(201).json({
+    message: "ATS analysis generated successfully.",
+    interviewReport,
+  });
+});
 
 /**
- * @description Controller to generate resume PDF based on user self description, resume and job description.
+ * @route GET /api/interview/:interviewId
  */
-async function generateResumePdfController(req, res) {
-    const { interviewReportId } = req.params
+const getInterviewReportByIdController = asyncHandler(async function (req, res) {
+  const { interviewId } = req.params;
 
-    const interviewReport = await interviewReportModel.findById(interviewReportId)
+  const interviewReport = await interviewReportModel.findOne({
+    _id: interviewId,
+    user: req.user.id,
+  });
 
-    if (!interviewReport) {
-        return res.status(404).json({
-            message: "Interview report not found."
-        })
-    }
+  if (!interviewReport) {
+    return res.status(404).json({ message: "Report not found." });
+  }
 
-    const { resume, jobDescription, selfDescription } = interviewReport
+  res.status(200).json({
+    message: "Report fetched successfully.",
+    interviewReport,
+  });
+});
 
-    const pdfBuffer = await generateResumePdf({ resume, jobDescription, selfDescription })
+/**
+ * @route GET /api/interview
+ */
+const getAllInterviewReportsController = asyncHandler(async function (req, res) {
+  const interviewReports = await interviewReportModel
+    .find({ user: req.user.id })
+    .sort({ createdAt: -1 })
+    .select("type status title matchScore jobDescription createdAt");
 
-    res.set({
-        "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename=resume_${interviewReportId}.pdf`
-    })
+  res.status(200).json({
+    message: "Reports fetched successfully.",
+    interviewReports,
+  });
+});
 
-    res.send(pdfBuffer)
-}
+/**
+ * @route GET /api/interview/:interviewReportId/pdf
+ */
+const generateReportPdfController = asyncHandler(async function (req, res) {
+  const { interviewReportId } = req.params;
 
-module.exports = { generateInterViewReportController, getInterviewReportByIdController, getAllInterviewReportsController, generateResumePdfController }
+  const interviewReport = await interviewReportModel.findOne({
+    _id: interviewReportId,
+    user: req.user.id,
+  });
+
+  if (!interviewReport) {
+    return res.status(404).json({ message: "Report not found." });
+  }
+
+  if (interviewReport.type === "interview" && interviewReport.status !== "completed") {
+    return res.status(400).json({ message: "Submit the interview before downloading the report." });
+  }
+
+  const pdfBuffer = await generateReportPdf(interviewReport);
+
+  res.set({
+    "Content-Type": "application/pdf",
+    "Content-Disposition": `attachment; filename=report_${interviewReportId}.pdf`,
+  });
+
+  res.send(pdfBuffer);
+});
+
+module.exports = {
+  generateQuestionsController,
+  saveAnswersController,
+  submitInterviewController,
+  generateAtsController,
+  getInterviewReportByIdController,
+  getAllInterviewReportsController,
+  generateReportPdfController,
+};

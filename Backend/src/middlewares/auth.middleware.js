@@ -1,57 +1,34 @@
-const jwt = require("jsonwebtoken")
-const tokenBlacklistModel = require("../models/blacklist.model")
+const jwt = require("jsonwebtoken");
+const tokenBlacklistModel = require("../models/blacklist.model");
+const asyncHandler = require("../utils/asyncHandler");
 
+const authUser = asyncHandler(async function (req, res, next) {
+  const cookieToken = req.cookies.token;
 
+  const bearerToken =
+    req.headers.authorization && req.headers.authorization.startsWith("Bearer ")
+      ? req.headers.authorization.split(" ")[1]
+      : null;
 
-async function authUser(req, res, next) {
+  const token = cookieToken || bearerToken;
 
-    const cookieToken = req.cookies.token;
+  if (!token) {
+    return res.status(401).json({ message: "Token not provided." });
+  }
 
-const bearerToken =
-  req.headers.authorization &&
-  req.headers.authorization.startsWith("Bearer ")
-    ? req.headers.authorization.split(" ")[1]
-    : null;
+  const isTokenBlacklisted = await tokenBlacklistModel.findOne({ token });
 
-const token = cookieToken || bearerToken;
+  if (isTokenBlacklisted) {
+    return res.status(401).json({ message: "Token is invalid." });
+  }
 
-if (!token) {
-  return res.status(401).json({
-    message: "Token not provided."
-  });
-}
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    req.user = decoded;
+    next();
+  } catch (err) {
+    return res.status(401).json({ message: "Invalid token." });
+  }
+});
 
-    if (!token) {
-        return res.status(401).json({
-            message: "Token not provided."
-        })
-    }
-
-    const isTokenBlacklisted = await tokenBlacklistModel.findOne({
-        token
-    })
-
-    if (isTokenBlacklisted) {
-        return res.status(401).json({
-            message: "token is invalid"
-        })
-    }
-
-    try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET)
-
-        req.user = decoded
-
-        next()
-
-    } catch (err) {
-
-        return res.status(401).json({
-            message: "Invalid token."
-        })
-    }
-
-}
-
-
-module.exports = { authUser }
+module.exports = { authUser };

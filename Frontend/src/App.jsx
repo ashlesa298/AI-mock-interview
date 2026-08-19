@@ -1,4 +1,5 @@
 import { Routes, Route } from "react-router-dom";
+import "./App.css";
 
 import Home from "./Pages/Home/Home";
 import Login from "./Pages/Login/Login";
@@ -7,6 +8,7 @@ import Dashboard from "./Pages/Dashboard/Dashboard";
 import Interview from "./Pages/Interview/Interview";
 import Report from "./Pages/Report/Report";
 import ResumeUpload from "./ResumeUpload/ResumeUpload.jsx";
+import ProtectedRoute from "./components/ProtectedRoute";
 
 function App() {
   return (
@@ -16,14 +18,41 @@ function App() {
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
 
-      <Route path="/dashboard" element={<Dashboard />} />
+      <Route
+        path="/dashboard"
+        element={
+          <ProtectedRoute>
+            <Dashboard />
+          </ProtectedRoute>
+        }
+      />
 
-      <Route path="/resume-upload" element={<ResumeUpload />} />
+      <Route
+        path="/resume-upload"
+        element={
+          <ProtectedRoute>
+            <ResumeUpload />
+          </ProtectedRoute>
+        }
+      />
 
-      <Route path="/interview/new" element={<Interview />} />
-      <Route path="/interview/:id" element={<Interview />} />
+      <Route
+        path="/interview/new"
+        element={
+          <ProtectedRoute>
+            <Interview />
+          </ProtectedRoute>
+        }
+      />
 
-      <Route path="/report/:id" element={<Report />} />
+      <Route
+        path="/report/:id"
+        element={
+          <ProtectedRoute>
+            <Report />
+          </ProtectedRoute>
+        }
+      />
     </Routes>
   );
 }

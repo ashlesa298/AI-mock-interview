@@ -6,35 +6,22 @@ font-family:Segoe UI,sans-serif;
 }
 
 body{
-
 background:#f5f7fb;
-
 color:#222;
-
 }
 
 a{
-
 text-decoration:none;
-
 color:inherit;
-
 }
 
 button{
-
 cursor:pointer;
-
 border:none;
-
 }
 
 .container{
-
 width:90%;
-
 max-width:1200px;
-
 margin:auto;
-
 }

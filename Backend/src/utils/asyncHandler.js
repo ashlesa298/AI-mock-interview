@@ -1,0 +1,11 @@
+/**
+ * Wraps an async controller so rejected promises are forwarded to Express's
+ * error handler instead of crashing the request.
+ */
+function asyncHandler(fn) {
+  return function (req, res, next) {
+    Promise.resolve(fn(req, res, next)).catch(next);
+  };
+}
+
+module.exports = asyncHandler;

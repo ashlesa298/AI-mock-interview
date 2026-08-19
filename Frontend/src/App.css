@@ -1,0 +1,14 @@
+::selection {
+  background: #2563eb;
+  color: #fff;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+input:focus,
+textarea:focus {
+  outline: 2px solid #93c5fd;
+  outline-offset: 1px;
+}

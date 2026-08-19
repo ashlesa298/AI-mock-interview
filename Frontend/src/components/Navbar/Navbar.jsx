@@ -17,14 +17,14 @@ const Navbar = () => {
 
           {user && <NavLink to="/dashboard">Dashboard</NavLink>}
 
-          {user && <NavLink to="/interview">Interview</NavLink>}
+          {user && <NavLink to="/interview/new">New Interview</NavLink>}
         </nav>
 
         <div className="nav-right">
           {user ? (
             <>
               <span className="username">
-                {user.name}
+                {user.username}
               </span>
 
               <button onClick={logout}>
