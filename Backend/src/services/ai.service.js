@@ -2,7 +2,10 @@ const puppeteer = require("puppeteer");
 const { z } = require("zod");
 
 const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
-const GROQ_MODEL = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
+// NOTE: Groq fully retired all Llama chat models (including llama-3.3-70b-versatile)
+// on Aug 16, 2026. openai/gpt-oss-120b is Groq's official recommended replacement —
+// same Groq account, same GROQ_API_KEY, same endpoint, no other code changes needed.
+const GROQ_MODEL = process.env.GROQ_MODEL || "openai/gpt-oss-120b";
 
 if (!process.env.GROQ_API_KEY) {
   console.warn(
@@ -94,8 +97,7 @@ async function callGroq(prompt) {
 /**
  * Calls Groq and validates the result against a zod schema. If the model's
  * JSON doesn't match the expected shape, retries once with a stricter
- * reminder before giving up (Groq's JSON mode guarantees valid JSON, but not
- * a specific shape, unlike Gemini's responseSchema).
+ * reminder before giving up.
  */
 async function callGroqWithSchema(prompt, zodSchema, attempt = 1) {
   const raw = await callGroq(prompt);

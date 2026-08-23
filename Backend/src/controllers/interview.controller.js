@@ -10,8 +10,8 @@ const asyncHandler = require("../utils/asyncHandler");
 
 async function extractResumeText(file) {
   if (!file) return "";
-  const parsed = await new pdfParse.PDFParse(Uint8Array.from(file.buffer)).getText();
-  return parsed.text || "";
+  const data = await pdfParse(file.buffer);
+  return data.text || "";
 }
 
 /**
