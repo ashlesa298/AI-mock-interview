@@ -1,3 +1,4 @@
+
 const path = require("path");
 const express = require("express");
 
@@ -8,15 +9,28 @@ const connectToDB = require("./src/config/database");
 
 connectToDB();
 
-// Serve React frontend
 const frontendPath = path.join(__dirname, "../Frontend/dist");
 
 app.use(express.static(frontendPath));
 
-app.get("/{*splat}", (req, res) => {
+// Serve the React homepage
+app.get("/", (req, res) => {
     res.sendFile(path.join(frontendPath, "index.html"));
 });
 
-app.listen(process.env.PORT || 3000, () => {
-    console.log(`Server is running on port ${process.env.PORT || 3000}`);
+// Serve React routes, but don't override API routes
+app.get("/{*splat}", (req, res, next) => {
+    if (req.path.startsWith("/api/")) {
+        return next();
+    }
+
+    res.sendFile(path.join(frontendPath, "index.html"), (err) => {
+        if (err) next(err);
+    });
+});
+
+const PORT = process.env.PORT || 3000;
+
+app.listen(PORT, () => {
+    console.log(`Server is running on port ${PORT}`);
 });
